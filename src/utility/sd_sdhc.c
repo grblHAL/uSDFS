@@ -32,6 +32,8 @@
 
 #if defined(__MK64FX512__) || defined(__MK66FX1M0__) || defined(__IMXRT1052__) || defined(__IMXRT1062__)
 
+#include <stdlib.h>
+#include <string.h>
 #include "core_pins.h"  // include calls to kinetis.h or imxrt.h
 
 // for debugging in C
@@ -140,23 +142,11 @@ DSTATUS SDHC_disk_initialize()
 }
 
 DRESULT SDHC_disk_read(BYTE *buff, DWORD sector, UINT count)
-{		
-	  #if defined(__IMXRT1062__)
-	  if((uint32_t)buff >= 0x20200000U)
-	    arm_dcache_delete((void *)buff, 512 * count);
-	  #endif
-
-	return (DRESULT) sd_CardReadBlocks((void *) buff, (uint32_t) sector, (uint32_t) count);
+{   return (DRESULT) sd_CardReadBlocks((void *) buff, (uint32_t) sector, (uint32_t) count);
 }
 
 DRESULT SDHC_disk_write(const BYTE *buff, DWORD sector, UINT count)
-{	
-	
-	  #if defined(__IMXRT1062__)
-	  if((uint32_t)buff >= 0x20200000U)
-	    arm_dcache_flush_delete((void *)buff, 512 * count);
-	  #endif
-	return (DRESULT) sd_CardWriteBlocks((void *) buff, (uint32_t) sector, (uint32_t) count);
+{	return (DRESULT) sd_CardWriteBlocks((void *) buff, (uint32_t) sector, (uint32_t) count);
 }
 
 DRESULT SDHC_disk_ioctl(BYTE cmd, BYTE *buff)
@@ -611,6 +601,11 @@ int sd_CardReadBlocks(void * buff, uint32_t sector, uint32_t count)
   dmaDone=0;
   SDHC_DSADDR  = (uint32_t)buff;
 
+#if defined(__IMXRT1062__)
+  if((uint32_t)buff >= 0x20200000U)
+    arm_dcache_flush_delete((void *)buff, 512 * count);
+#endif
+
   // send command
     SDHC_CMDARG = sector;
     SDHC_XFERTYP = count==1 ? SDHC_CMD17_XFERTYP: SDHC_CMD18_XFERTYP; 
@@ -618,6 +613,11 @@ int sd_CardReadBlocks(void * buff, uint32_t sector, uint32_t count)
   // wait for DMA
   while(!dmaDone);
   SDHC_IRQSTAT &= (SDHC_IRQSTAT_CC | SDHC_IRQSTAT_TC);
+
+#if defined(__IMXRT1062__)
+  if((uint32_t)buff >= 0x20200000U)
+    arm_dcache_flush_delete((void *)buff, 512 * count);
+#endif
 
 	// Auto CMD12 is enabled for DMA so call it if DMA error
 	if((SDHC_DSADDR < (uint32_t)(buff+(count*512))) && (count>1))
@@ -647,6 +647,7 @@ int sd_CardReadBlocks(void * buff, uint32_t sector, uint32_t count)
 int sd_CardWriteBlocks(const void * buff, uint32_t sector, uint32_t count)
 {
   int result=0;
+  void *buff2 = NULL;
   // unused // const uint32_t *pData = (const uint32_t *)buff;
 
   // Convert LBA to uint8_t address if needed
@@ -689,6 +690,16 @@ int sd_CardWriteBlocks(const void * buff, uint32_t sector, uint32_t count)
   #endif
   SDHC_BLKATTR = SDHC_BLKATTR_BLKCNT(count) | SDHC_BLKATTR_BLKSIZE(512);
 
+  if((uint32_t)buff % 4) {
+    if((buff2 = malloc(512 * count)))
+        buff = memcpy(buff2, buff, 512 * count);
+  }
+
+#if defined(__IMXRT1062__)
+  if((uint32_t)buff >= 0x20200000U)
+    arm_dcache_flush_delete((void *)buff, 512 * count);
+#endif
+
   // enable DMA
   dmaDone=0;
   SDHC_DSADDR  = (uint32_t)buff;
@@ -706,10 +717,13 @@ int sd_CardWriteBlocks(const void * buff, uint32_t sector, uint32_t count)
   //check for SD status (if data are written?)
   result = sd_CMD13_WaitForReady(sdCardDesc.address);
 
+  if(buff2)
+    free(buff2);
+  
 	// Auto CMD12 is enabled for DMA so call it when transfer error
 	if((result != SDHC_RESULT_OK) && (count>1))
 		result=sd_CMD12_StopTransferWaitForBusy();
-  
+
   return result;
 }
 

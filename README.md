@@ -1,6 +1,8 @@
 # uSDFS
 uSD File system based on ELM-CHaN generic FAT system
 
+This fork has fixes for issue #11 and #12, and configuration settings for the [grblHAL iMXRT1062 driver](https://github.com/grblHAL/iMXRT1062).
+
 The Teensy library contains a port of ELM_CHaN's generic FAT file system for the PJRC Teensy 3.5/6 and Teensy 4 MCU.
 
 # Examples

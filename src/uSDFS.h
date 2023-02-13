@@ -5,6 +5,8 @@
 #include "ff.h"
 #include "utility/sd_config.h"
 
+#define HAVETM
+
 #ifndef MY_VOL_TO_PART
 	#define MY_VOL_TO_PART
 	#if FF_MULTI_PARTITION		/* Multiple partition configuration */ 
