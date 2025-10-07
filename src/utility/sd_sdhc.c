@@ -149,12 +149,40 @@ DRESULT SDHC_disk_write(const BYTE *buff, DWORD sector, UINT count)
 {	return (DRESULT) sd_CardWriteBlocks((void *) buff, (uint32_t) sector, (uint32_t) count);
 }
 
-DRESULT SDHC_disk_ioctl(BYTE cmd, BYTE *buff)
-{   return RES_OK;
+DRESULT SDHC_disk_ioctl(BYTE ctrl, BYTE *buff)
+{
+    DRESULT res;
+
+    res = RES_ERROR;
+
+    if (ctrl == CTRL_POWER) {
+        res = RES_OK;
+    }
+    else {
+        if (SDHC_disk_status() & STA_NOINIT) return RES_NOTRDY;
+
+        switch (ctrl) {
+        case GET_SECTOR_COUNT :    /* Get number of sectors on the disk (DWORD) */
+			*(DWORD*)buff = (DWORD)sdCardDesc.numBlocks;
+			res = RES_OK;
+            break;
+
+        case GET_SECTOR_SIZE :    /* Get sectors on the disk (WORD) */
+            *(WORD*)buff = 512;
+            res = RES_OK;
+            break;
+
+        case CTRL_SYNC :    /* Make sure that data has been written */
+            res = RES_OK;
+            break;
+			
+        default:
+            res = RES_PARERR;
+        }
+    }
+
+    return res;
 }
-
-
-
 
 #define SDHC_IRQSIGEN_DMA_MASK (SDHC_IRQSIGEN_TCIEN | SDHC_IRQSIGEN_DINTIEN | SDHC_IRQSIGEN_DMAEIEN)
 
